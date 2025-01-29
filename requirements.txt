@@ -1,0 +1,18 @@
+pandas  # For Excel and CSV processing
+beautifulsoup4  # For HTML parsing
+python-docx  # For Word document processing
+PyPDF2  # For PDF processing
+speechrecognition  # For audio transcription
+pytesseract  # For OCR if needed
+moviepy  # For MKV file audio extraction
+langchain
+langchain_openai
+langchain_community
+docx
+pptx
+PyPDF2
+streamlit
+openai-whisper
+nbformat
+beautifulsoup4
+bs4
