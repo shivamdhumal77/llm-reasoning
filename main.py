@@ -1,5 +1,4 @@
 import os
-import streamlit as st
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.vectorstores import FAISS
@@ -17,9 +16,8 @@ from powerpoint import extract_text_from_ppt_file
 from programming_languages import extract_text_from_file as extract_text_from_code_file
 from scrape_script import scrape_website
 from word import extract_text_from_word_file
-from jupyter_notebook import extract_text_from_notebook  # Fixed import
+from jupyter_notebook import extract_text_from_notebook
 
-# Initialize the ChatOpenAI instances for different models
 llm_1 = ChatOpenAI(
     api_key="ollama",
     base_url="https://sunny-gerri-finsocialdigitalsystem-d9b385fa.koyeb.app/v1",
@@ -36,15 +34,9 @@ huggingface_embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 def generate_text(prompt):
     try:
-        response = llm_1.predict(prompt)
-        return response
-    except Exception as e:
-        print(f"Error with first model: {e}")
-        try:
-            response = llm_2.predict(prompt)
-            return response
-        except Exception as e:
-            return "Failed to generate an answer."
+        return llm_1.predict(prompt)
+    except Exception:
+        return llm_2.predict(prompt)
 
 def get_chunks(text):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
@@ -52,137 +44,80 @@ def get_chunks(text):
 
 def create_vector_store(chunks):
     docs = [Document(page_content=chunk) for chunk in chunks]
-    vector_store = FAISS.from_documents(docs, huggingface_embeddings)
-    return vector_store
+    return FAISS.from_documents(docs, huggingface_embeddings)
 
 def extract_text_from_file(file_path):
-    try:
-        if file_path.startswith(("http://", "https://")):
-            if "youtube.com" in file_path or "youtu.be" in file_path:
-                return extract_text_from_youtube(file_path)
-            else:
-                return scrape_website(file_path)
-
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"The file or path '{file_path}' does not exist.")
-
-        file_extension = os.path.splitext(file_path)[1].lower()
-
-        if file_extension in ['.xls', '.xlsx', '.csv']:
-            return extract_text_from_excel_or_csv(file_path)
-        elif file_extension == '.html':
-            return extract_text_from_html(file_path)
-        elif file_extension == '.json':
-            return json_read(file_path)
-        elif file_extension == '.mkv':
-            return extract_audio_and_transcribe(file_path)
-        elif file_extension == '.mp3':
-            return extract_text_from_mp3(file_path)
-        elif file_extension == '.pdf':
-            return pdf_read(file_path)
-        elif file_extension in ['.ppt', '.pptx']:
-            return extract_text_from_ppt_file(file_path)
-        elif file_extension in ['.c', '.cpp', '.py', '.dart', '.java', '.js', '.css', '.php', '.xml']:
-            return extract_text_from_code_file(file_path)
-        elif file_extension in ['.doc', '.docx']:
-            return extract_text_from_word_file(file_path)
-        elif file_extension == '.ipynb':  
-            return extract_text_from_notebook(file_path)  # Fixed function call
-        else:
-            raise ValueError(f"Unsupported file type: {file_extension}.")
-    except Exception as e:
-        return f"Error extracting text: {e}"
+    if file_path.startswith(("http://", "https://")):
+        return scrape_website(file_path)
+    
+    if not os.path.exists(file_path):
+        return f"File not found: {file_path}"
+    
+    file_extension = os.path.splitext(file_path)[1].lower()
+    extractors = {
+        '.xls': extract_text_from_excel_or_csv, '.xlsx': extract_text_from_excel_or_csv, '.csv': extract_text_from_excel_or_csv,
+        '.html': extract_text_from_html, '.json': json_read, '.mkv': extract_audio_and_transcribe,
+        '.mp3': extract_text_from_mp3, '.pdf': pdf_read, '.ppt': extract_text_from_ppt_file, '.pptx': extract_text_from_ppt_file,
+        '.c': extract_text_from_code_file, '.cpp': extract_text_from_code_file, '.py': extract_text_from_code_file,
+        '.dart': extract_text_from_code_file, '.java': extract_text_from_code_file, '.js': extract_text_from_code_file,
+        '.css': extract_text_from_code_file, '.php': extract_text_from_code_file, '.xml': extract_text_from_code_file,
+        '.doc': extract_text_from_word_file, '.docx': extract_text_from_word_file, '.ipynb': extract_text_from_notebook
+    }
+    
+    return extractors.get(file_extension, lambda x: f"Unsupported file type: {file_extension}")(file_path)
 
 def analyze_image(file_path, user_prompt):
+    if not os.path.exists(file_path):
+        return f"File not found: {file_path}"
+    
     try:
-        if not os.path.exists(file_path):
-            return f"File not found: {file_path}"
-
-        image = Image.open(file_path)
-        image.verify()
-
-        if not user_prompt:
-            return "Please provide a description or question related to the image."
-
-        llm_vision = ChatOpenAI(
-            api_key="ollama",
-            base_url="https://sunny-gerri-finsocialdigitalsystem-d9b385fa.koyeb.app/v1",
-            model="llama3.2-vision"
-        )
-
-        prompt = f"Analyze the image and respond to this prompt: {user_prompt}"
-        response = llm_vision.predict(prompt)
-        return response
-
-    except Exception as e:
-        return f"Error analyzing the image: {e}"
-
-def process_image(file_path, user_prompt):
-    try:
-        if not os.path.exists(file_path):
-            return f"File not found: {file_path}"
-
-        file_extension = os.path.splitext(file_path)[1].lower()
-        if file_extension not in ['.jpeg', '.jpg', '.png']:
-            return f"Unsupported file type: {file_extension}. Please upload a valid image file."
-
-        response = analyze_image(file_path, user_prompt)
-        return response
-
-    except Exception as e:
-        return f"Error processing image: {e}"
+        Image.open(file_path).verify()
+    except Exception:
+        return "Invalid image file."
+    
+    if not user_prompt:
+        return "Please provide a description or question related to the image."
+    
+    llm_vision = ChatOpenAI(
+        api_key="ollama",
+        base_url="https://sunny-gerri-finsocialdigitalsystem-d9b385fa.koyeb.app/v1",
+        model="llama3.2-vision"
+    )
+    return llm_vision.predict(f"Analyze the image and respond to this prompt: {user_prompt}")
 
 def generate_answer(query, retriever):
     try:
-        relevant_docs = retriever.get_relevant_documents(query)
-        context = " ".join([doc.page_content for doc in relevant_docs])
-
-        prompt = f"Context: {context}\n\nQuestion: {query}\n\nAnswer:"
-        response = generate_text(prompt)
-        return response
+        context = " ".join([doc.page_content for doc in retriever.get_relevant_documents(query)])
+        return generate_text(f"Context: {context}\n\nQuestion: {query}\n\nAnswer:")
     except Exception as e:
-        return f"Failed to generate an answer. Error: {e}"
+        return f"Error generating answer: {e}"
 
 def main():
-    st.title("AI-based Text & Image Analysis")
-
-    option = st.selectbox("Choose an option:", ["Text Analysis", "Image Analysis"])
-
-    if option == "Text Analysis":
-        file_path = st.text_input("Enter file path or URL")
-
-        if file_path:
-            st.write(f"Processing file from: {file_path}")
-            extracted_text = extract_text_from_file(file_path)
-
-            if extracted_text.startswith("Error"):
-                st.error(extracted_text)
-                return
-
-            st.write("Processing completed. Now, you can ask questions about the document.")
-
-            text_chunks = get_chunks(extracted_text)
-            vector_store = create_vector_store(text_chunks)
-            retriever = vector_store.as_retriever()
-
-            query = st.text_input("Ask a question about the document:")
-
-            if query:
-                response = generate_answer(query, retriever)
-                st.write("Answer:")
-                st.write(response)
-
-    elif option == "Image Analysis":
-        uploaded_file = st.file_uploader("Upload an image", type=["jpeg", "jpg", "png"])
-        user_prompt = st.text_input("Enter a prompt for the image:")
-
-        if uploaded_file and user_prompt:
-            with open("temp_image.jpg", "wb") as f:
-                f.write(uploaded_file.getbuffer())
-
-            result = process_image("temp_image.jpg", user_prompt)
-            st.write("Result:")
-            st.write(result)
+    print("Choose an option:")
+    print("1. Text Analysis")
+    print("2. Image Analysis")
+    choice = input("Enter choice (1/2): ")
+    
+    if choice == "1":
+        file_path = input("Enter file path or URL: ")
+        extracted_text = extract_text_from_file(file_path)
+        if extracted_text.startswith("Error"):
+            print(extracted_text)
+            return
+        
+        text_chunks = get_chunks(extracted_text)
+        vector_store = create_vector_store(text_chunks)
+        retriever = vector_store.as_retriever()
+        
+        query = input("Ask a question about the document: ")
+        print("Answer:", generate_answer(query, retriever))
+    
+    elif choice == "2":
+        file_path = input("Enter image file path: ")
+        user_prompt = input("Enter a prompt for the image: ")
+        print("Result:", analyze_image(file_path, user_prompt))
+    else:
+        print("Invalid choice.")
 
 if __name__ == "__main__":
     main()
